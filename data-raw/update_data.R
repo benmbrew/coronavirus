@@ -3,6 +3,7 @@ library(readr)
 library(tidyr)
 library(rvest)
 library(reshape2)
+library(tidyverse)
 
 
 # Consider replacing pipeline with: https://cowid.netlify.com/data/new_deaths.csv
@@ -143,10 +144,22 @@ dat <- dat[-1,]
 dat <- dat[, 1:11]
 start_index <- which(dat$date == 'Total confirmed')
 dat <- dat[1:(start_index-1),]
+dat$date <- as.Date(dat$date, format = '%B%d')
+
+all_dates = seq(min(dat$date), max(dat$date), 1)
+
+
+dates0 = all_dates[!(all_dates %in% dat$date)]
+data0 = data.frame(date = dates0, bc = 0, Ab = 0,
+                   SK=0, MB=0, ON=0, QC=0, NB=0, PE=0, NS=0, NL=0)
+
+dat <- rbind(dat,data0)
 dat <- melt(dat, id.vars = 'date')
 dat$value[dat$value ==''] <- 0
 dat$date <- gsub(' ', '', dat$date)
-dat$date <- as.Date(dat$date, format = '%B%d')
+
+
+
 # loop through province and get cumsum 
 prov_names <- unique(dat$variable)
 result_list <- list()
@@ -160,5 +173,7 @@ for(i in 1:length(prov_names)){
 canada <- do.call(rbind, result_list)
 names(canada) <- c('date', 'location', 'daily_cases', 'cumulative_cases')
 canada$location <- toupper(as.character(canada$location))
-rm(dat, html_tables, result_list, sub_dat, cad_url, start_index, this_name, prov_names)
+
+rm(dat, data0, html_tables, result_list, sub_dat, all_dates, cad_url, dates0,
+   prov_names, i, start_index, this_name)
 
