@@ -1,6 +1,9 @@
 library(dplyr)
 library(readr)
 library(tidyr)
+library(rvest)
+library(reshape2)
+
 
 # Consider replacing pipeline with: https://cowid.netlify.com/data/new_deaths.csv
 
@@ -20,6 +23,9 @@ download.file(url = 'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/m
 # Recovered
 download.file(url = 'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_19-covid-Recovered.csv',
               destfile = 'jhu/recovered.csv')
+
+
+
 
 # Read in
 confirmed_cases <- read_csv('jhu/confirmed_cases.csv')
@@ -116,4 +122,43 @@ df_country <- df %>%
          deaths_non_cum = deaths - lag(deaths, default = 0),
          recovered_non_cum = recovered - lag(recovered, default = 0)) %>%
   ungroup
+
+########
+## CANADA
+########
+
+
+cad_url <- "https://en.wikipedia.org/wiki/2020_coronavirus_pandemic_in_Canada"
+html_tables <- cad_url %>%
+  html %>%
+  html_nodes("table")
+
+dat <- html_table(html_tables, header = TRUE, fill = TRUE)[[4]]
+
+# remove first row
+dat <- dat[-1,]
+names(dat) <- as.character(dat[1,])
+names(dat) <- c('date', 'bc', 'Ab','SK', 'MB', 'ON', 'QC', 'NB', 'PE', 'NS', 'NL')
+dat <- dat[-1,]
+dat <- dat[, 1:11]
+start_index <- which(dat$date == 'Total confirmed')
+dat <- dat[1:(start_index-1),]
+dat <- melt(dat, id.vars = 'date')
+dat$value[dat$value ==''] <- 0
+dat$date <- gsub(' ', '', dat$date)
+dat$date <- as.Date(dat$date, format = '%B%d')
+# loop through province and get cumsum 
+prov_names <- unique(dat$variable)
+result_list <- list()
+for(i in 1:length(prov_names)){
+  this_name <- prov_names[i]
+  sub_dat <- dat %>% filter(variable == this_name) %>% arrange(date)
+  sub_dat$cumulative_cases <- cumsum(sub_dat$value)
+  result_list[[i]] <- sub_dat
+}
+
+canada <- do.call(rbind, result_list)
+names(canada) <- c('date', 'location', 'daily_cases', 'cumulative_cases')
+canada$location <- toupper(as.character(canada$location))
+rm(dat, html_tables, result_list, sub_dat, cad_url, start_index, this_name, prov_names)
 
